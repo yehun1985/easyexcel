@@ -2,9 +2,11 @@ package com.alibaba.excel.write;
 
 import java.util.List;
 
+import com.alibaba.excel.context.WriteContext;
 import com.alibaba.excel.write.merge.OnceAbsoluteMergeStrategy;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.excel.write.metadata.WriteTable;
+import com.alibaba.excel.write.metadata.fill.FillConfig;
 
 /**
  * @author jipengfei
@@ -36,6 +38,15 @@ public interface ExcelBuilder {
     void addContent(List data, WriteSheet writeSheet, WriteTable writeTable);
 
     /**
+     * WorkBook fill value
+     *
+     * @param data
+     * @param fillConfig
+     * @param writeSheet
+     */
+    void fill(Object data, FillConfig fillConfig, WriteSheet writeSheet);
+
+    /**
      * Creates new cell range. Indexes are zero-based.
      *
      * @param firstRow
@@ -52,7 +63,23 @@ public interface ExcelBuilder {
     void merge(int firstRow, int lastRow, int firstCol, int lastCol);
 
     /**
+     * Gets the written data
+     *
+     * @return
+     */
+    WriteContext writeContext();
+
+    /**
      * Close io
      */
     void finish();
+
+    /**
+     * add password
+     * @param data
+     * @param writeSheet
+     * @param writeTable
+     * @param password
+     */
+    void addContent(List data, WriteSheet writeSheet, WriteTable writeTable, String password);
 }

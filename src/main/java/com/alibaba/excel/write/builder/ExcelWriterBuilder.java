@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import com.alibaba.excel.ExcelWriter;
@@ -76,6 +77,72 @@ public class ExcelWriterBuilder {
      */
     public ExcelWriterBuilder autoCloseStream(Boolean autoCloseStream) {
         writeWorkbook.setAutoCloseStream(autoCloseStream);
+        return this;
+    }
+
+    /**
+     * Use the default style.Default is true.
+     *
+     * @param useDefaultStyle
+     * @return
+     */
+    public ExcelWriterBuilder useDefaultStyle(Boolean useDefaultStyle) {
+        writeWorkbook.setUseDefaultStyle(useDefaultStyle);
+        return this;
+    }
+
+    /**
+     * Whether the encryption.
+     * <p>
+     * WARRING:Encryption is when the entire file is read into memory, so it is very memory intensive.
+     *
+     * @param password
+     * @return
+     */
+    public ExcelWriterBuilder password(String password) {
+        writeWorkbook.setPassword(password);
+        return this;
+    }
+
+    /**
+     * Write excel in memory. Default false,the cache file is created and finally written to excel.
+     * <p>
+     * Comment and RichTextString are only supported in memory mode.
+     */
+    public ExcelWriterBuilder inMemory(Boolean inMemory) {
+        writeWorkbook.setInMemory(inMemory);
+        return this;
+    }
+
+    /**
+     * Ignore the custom columns.
+     */
+    public ExcelWriterBuilder excludeColumnIndexes(Collection<Integer> excludeColumnIndexes) {
+        writeWorkbook.setExcludeColumnIndexes(excludeColumnIndexes);
+        return this;
+    }
+
+    /**
+     * Ignore the custom columns.
+     */
+    public ExcelWriterBuilder excludeColumnFiledNames(Collection<String> excludeColumnFiledNames) {
+        writeWorkbook.setExcludeColumnFiledNames(excludeColumnFiledNames);
+        return this;
+    }
+
+    /**
+     * Only output the custom columns.
+     */
+    public ExcelWriterBuilder includeColumnIndexes(Collection<Integer> includeColumnIndexes) {
+        writeWorkbook.setIncludeColumnIndexes(includeColumnIndexes);
+        return this;
+    }
+
+    /**
+     * Only output the custom columns.
+     */
+    public ExcelWriterBuilder includeColumnFiledNames(Collection<String> includeColumnFiledNames) {
+        writeWorkbook.setIncludeColumnFiledNames(includeColumnFiledNames);
         return this;
     }
 

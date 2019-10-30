@@ -43,13 +43,26 @@ public class WriteWorkbook extends WriteBasicParameter {
      */
     private File templateFile;
     /**
-     * Default true
+     * Default true.
      */
     private Boolean autoCloseStream;
     /**
      * Mandatory use 'inputStream' .Default is false
      */
     private Boolean mandatoryUseInputStream;
+    /**
+     * Whether the encryption
+     * <p>
+     * WARRING:Encryption is when the entire file is read into memory, so it is very memory intensive.
+     *
+     */
+    private String password;
+    /**
+     * Write excel in memory. Default false,the cache file is created and finally written to excel.
+     * <p>
+     * Comment and RichTextString are only supported in memory mode.
+     */
+    private Boolean inMemory;
     /**
      * The default is all excel objects.Default is true.
      * <p>
@@ -139,5 +152,21 @@ public class WriteWorkbook extends WriteBasicParameter {
 
     public void setWriteHandler(com.alibaba.excel.event.WriteHandler writeHandler) {
         this.writeHandler = writeHandler;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public Boolean getInMemory() {
+        return inMemory;
+    }
+
+    public void setInMemory(Boolean inMemory) {
+        this.inMemory = inMemory;
     }
 }

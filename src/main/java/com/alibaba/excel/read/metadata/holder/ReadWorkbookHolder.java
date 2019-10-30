@@ -8,10 +8,11 @@ import java.util.Set;
 
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alibaba.excel.cache.ReadCache;
+import com.alibaba.excel.cache.selector.EternalReadCacheSelector;
+import com.alibaba.excel.cache.selector.ReadCacheSelector;
+import com.alibaba.excel.cache.selector.SimpleReadCacheSelector;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.enums.HolderEnum;
 import com.alibaba.excel.event.AnalysisEventListener;
@@ -25,7 +26,6 @@ import com.alibaba.excel.support.ExcelTypeEnum;
  * @author Jiaju Zhuang
  */
 public class ReadWorkbookHolder extends AbstractReadHolder {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ReadWorkbookHolder.class);
 
     /**
      * current param
@@ -64,15 +64,25 @@ public class ReadWorkbookHolder extends AbstractReadHolder {
      */
     private Object customObject;
     /**
-     * A cache that stores temp data to save memory.Default use {@link com.alibaba.excel.cache.Ehcache}
+     * Ignore empty rows.Default is true.
+     */
+    private Boolean ignoreEmptyRow;
+    /**
+     * A cache that stores temp data to save memory.
      */
     private ReadCache readCache;
-
+    /**
+     * Select the cache.Default use {@link com.alibaba.excel.cache.selector.SimpleReadCacheSelector}
+     */
+    private ReadCacheSelector readCacheSelector;
     /**
      * Temporary files when reading excel
      */
     private File tempFile;
-
+    /**
+     * Whether the encryption
+     */
+    private String password;
     /**
      * The default is all excel objects.if true , you can use {@link com.alibaba.excel.annotation.ExcelIgnore} ignore a
      * field. if false , you must use {@link com.alibaba.excel.annotation.ExcelProperty} to use a filed.
@@ -131,18 +141,31 @@ public class ReadWorkbookHolder extends AbstractReadHolder {
         } else {
             this.autoCloseStream = readWorkbook.getAutoCloseStream();
         }
-        if (readWorkbook.getExcelType() == null) {
-            this.excelType = ExcelTypeEnum.valueOf(file, inputStream);
-        } else {
-            this.excelType = readWorkbook.getExcelType();
-        }
+
+        // The type of excel is read according to the judgment.Because encrypted XLSX needs to be specified as XLS to
+        // properly parse.
+        this.excelType = ExcelTypeEnum.valueOf(file, inputStream, readWorkbook.getExcelType());
+
         if (ExcelTypeEnum.XLS == excelType && getGlobalConfiguration().getUse1904windowing() == null) {
             getGlobalConfiguration().setUse1904windowing(Boolean.FALSE);
         }
         this.customObject = readWorkbook.getCustomObject();
-        this.readCache = readWorkbook.getReadCache();
-        if (readCache != null && ExcelTypeEnum.XLS == excelType) {
-            LOGGER.warn("Xls not support 'readCache'!");
+        if (readWorkbook.getIgnoreEmptyRow() == null) {
+            this.ignoreEmptyRow = Boolean.TRUE;
+        } else {
+            this.ignoreEmptyRow = readWorkbook.getIgnoreEmptyRow();
+        }
+        if (readWorkbook.getReadCache() != null) {
+            if (readWorkbook.getReadCacheSelector() != null) {
+                throw new ExcelAnalysisException("'readCache' and 'readCacheSelector' only one choice.");
+            }
+            this.readCacheSelector = new EternalReadCacheSelector(readWorkbook.getReadCache());
+        } else {
+            if (readWorkbook.getReadCacheSelector() == null) {
+                this.readCacheSelector = new SimpleReadCacheSelector();
+            } else {
+                this.readCacheSelector = readWorkbook.getReadCacheSelector();
+            }
         }
         if (readWorkbook.getDefaultReturnMap() == null) {
             this.defaultReturnMap = Boolean.TRUE;
@@ -151,6 +174,7 @@ public class ReadWorkbookHolder extends AbstractReadHolder {
         }
         this.hasReadSheet = new HashSet<Integer>();
         this.ignoreRecord03 = Boolean.FALSE;
+        this.password = readWorkbook.getPassword();
     }
 
     public ReadWorkbook getReadWorkbook() {
@@ -201,12 +225,28 @@ public class ReadWorkbookHolder extends AbstractReadHolder {
         this.customObject = customObject;
     }
 
+    public Boolean getIgnoreEmptyRow() {
+        return ignoreEmptyRow;
+    }
+
+    public void setIgnoreEmptyRow(Boolean ignoreEmptyRow) {
+        this.ignoreEmptyRow = ignoreEmptyRow;
+    }
+
     public ReadCache getReadCache() {
         return readCache;
     }
 
     public void setReadCache(ReadCache readCache) {
         this.readCache = readCache;
+    }
+
+    public ReadCacheSelector getReadCacheSelector() {
+        return readCacheSelector;
+    }
+
+    public void setReadCacheSelector(ReadCacheSelector readCacheSelector) {
+        this.readCacheSelector = readCacheSelector;
     }
 
     public Boolean getMandatoryUseInputStream() {
@@ -271,6 +311,14 @@ public class ReadWorkbookHolder extends AbstractReadHolder {
 
     public void setIgnoreRecord03(Boolean ignoreRecord03) {
         this.ignoreRecord03 = ignoreRecord03;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     @Override

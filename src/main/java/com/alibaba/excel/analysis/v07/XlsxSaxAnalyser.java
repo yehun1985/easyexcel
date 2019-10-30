@@ -13,6 +13,7 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.xssf.eventusermodel.XSSFReader;
 import org.apache.poi.xssf.model.StylesTable;
@@ -20,31 +21,26 @@ import org.apache.poi.xssf.usermodel.XSSFRelation;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTWorkbook;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTWorkbookPr;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.WorkbookDocument;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
 
-import com.alibaba.excel.analysis.ExcelExecutor;
-import com.alibaba.excel.cache.Ehcache;
-import com.alibaba.excel.cache.MapCache;
+import com.alibaba.excel.analysis.ExcelReadExecutor;
+import com.alibaba.excel.cache.ReadCache;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.exception.ExcelAnalysisException;
 import com.alibaba.excel.read.metadata.ReadSheet;
 import com.alibaba.excel.read.metadata.holder.ReadWorkbookHolder;
+import com.alibaba.excel.util.CollectionUtils;
 import com.alibaba.excel.util.FileUtils;
+import com.alibaba.excel.util.SheetUtils;
 
 /**
  *
  * @author jipengfei
  */
-public class XlsxSaxAnalyser implements ExcelExecutor {
-    private static final Logger LOGGER = LoggerFactory.getLogger(XlsxSaxAnalyser.class);
-    /**
-     * If it's less than 5M, use map cache, or use ehcache.
-     */
-    private static final long USE_MAP_CACHE_SIZE = 5 * 1000 * 1000L;
+public class XlsxSaxAnalyser implements ExcelReadExecutor {
+
     private AnalysisContext analysisContext;
     private List<ReadSheet> sheetList;
     private Map<Integer, InputStream> sheetMap;
@@ -60,14 +56,18 @@ public class XlsxSaxAnalyser implements ExcelExecutor {
 
         OPCPackage pkg = readOpcPackage(readWorkbookHolder, decryptedStream);
         readWorkbookHolder.setOpcPackage(pkg);
-        PackagePart sharedStringsTablePackagePart =
-            pkg.getPartsByContentType(XSSFRelation.SHARED_STRINGS.getContentType()).get(0);
 
-        // Specify default cache
-        defaultReadCache(readWorkbookHolder, sharedStringsTablePackagePart);
+        ArrayList<PackagePart> packageParts = pkg.getPartsByContentType(XSSFRelation.SHARED_STRINGS.getContentType());
 
-        // Analysis sharedStringsTable.xml
-        analysisSharedStringsTable(sharedStringsTablePackagePart.getInputStream(), readWorkbookHolder);
+        if (!CollectionUtils.isEmpty(packageParts)) {
+            PackagePart sharedStringsTablePackagePart = packageParts.get(0);
+
+            // Specify default cache
+            defaultReadCache(readWorkbookHolder, sharedStringsTablePackagePart);
+
+            // Analysis sharedStringsTable.xml
+            analysisSharedStringsTable(sharedStringsTablePackagePart.getInputStream(), readWorkbookHolder);
+        }
 
         XSSFReader xssfReader = new XSSFReader(pkg);
         analysisUse1904WindowDate(xssfReader, readWorkbookHolder);
@@ -88,28 +88,10 @@ public class XlsxSaxAnalyser implements ExcelExecutor {
         }
     }
 
-    private void defaultReadCache(ReadWorkbookHolder readWorkbookHolder, PackagePart sharedStringsTablePackagePart)
-        throws IOException {
-        if (readWorkbookHolder.getReadCache() != null) {
-            readWorkbookHolder.getReadCache().init(analysisContext);
-            return;
-        }
-        long size = sharedStringsTablePackagePart.getSize();
-        if (size < 0) {
-            size = sharedStringsTablePackagePart.getInputStream().available();
-        }
-        if (size < USE_MAP_CACHE_SIZE) {
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Use map cache.size:{}", size);
-            }
-            readWorkbookHolder.setReadCache(new MapCache());
-        } else {
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Use ehcache.size:{}", size);
-            }
-            readWorkbookHolder.setReadCache(new Ehcache());
-        }
-        readWorkbookHolder.getReadCache().init(analysisContext);
+    private void defaultReadCache(ReadWorkbookHolder readWorkbookHolder, PackagePart sharedStringsTablePackagePart) {
+        ReadCache readCache = readWorkbookHolder.getReadCacheSelector().readCache(sharedStringsTablePackagePart);
+        readWorkbookHolder.setReadCache(readCache);
+        readCache.init(analysisContext);
     }
 
     private void analysisUse1904WindowDate(XSSFReader xssfReader, ReadWorkbookHolder readWorkbookHolder)
@@ -155,7 +137,7 @@ public class XlsxSaxAnalyser implements ExcelExecutor {
         } else {
             FileUtils.writeToFile(tempFile, readWorkbookHolder.getInputStream());
         }
-        return OPCPackage.open(tempFile);
+        return OPCPackage.open(tempFile, PackageAccess.READ);
     }
 
     @Override
@@ -191,9 +173,16 @@ public class XlsxSaxAnalyser implements ExcelExecutor {
     }
 
     @Override
-    public void execute() {
-        parseXmlSource(sheetMap.get(analysisContext.readSheetHolder().getSheetNo()),
-            new XlsxRowHandler(analysisContext, stylesTable));
+    public void execute(List<ReadSheet> readSheetList, Boolean readAll) {
+        for (ReadSheet readSheet : sheetList) {
+            readSheet = SheetUtils.match(readSheet, readSheetList, readAll,
+                analysisContext.readWorkbookHolder().getGlobalConfiguration());
+            if (readSheet != null) {
+                analysisContext.currentSheet(readSheet);
+                parseXmlSource(sheetMap.get(readSheet.getSheetNo()), new XlsxRowHandler(analysisContext, stylesTable));
+                // The last sheet is read
+                analysisContext.readSheetHolder().notifyAfterAllAnalysed(analysisContext);
+            }
+        }
     }
-
 }
